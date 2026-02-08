@@ -16,10 +16,16 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.SequenceInputStream;
+import java.nio.charset.StandardCharsets;
+import java.security.SecureRandom;
 import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.Set;
 
 @Component
 public class Tp2Handler {
+
+    private static final SecureRandom RANDOM = new SecureRandom();
 
     public Mono<ServerResponse> pong(ServerRequest request) {
         return ServerResponse.ok().contentType(MediaType.TEXT_PLAIN).body(BodyInserters.fromValue("I'm alive"));
@@ -86,28 +92,122 @@ public class Tp2Handler {
     public Mono<ServerResponse> anagrammesStrict(ServerRequest request) {
         String langue = request.pathVariable("langue");
         String mot = request.pathVariable("mot");
+
         ArrayList<String> liste = new ArrayList<>();
         String verifLangue = Utils.verifierDossiers(langue);
-        if (verifLangue.isEmpty()) {
-            File anagrammes = new File("langues/" + langue + "/anagrammes.json");
 
-            ObjectMapper mapper = new ObjectMapper();
-            try {
-                Dico dico = mapper.readValue(anagrammes, Dico.class);
+        try {
+            Dico dico = Utils.getDico(langue, verifLangue);
+            if (dico != null) {
                 String normMot = dico.normalize(mot);
                 String cle = dico.anagram(normMot);
 
                 if (dico.getDictionnary().get(cle) != null) liste.addAll(dico.getDictionnary().get(cle));
                 else liste.add("Ce mot n'existe pas");
-            } catch (IOException e) {
-                throw new RuntimeException(e);
+            } else {
+                liste.add(verifLangue);
             }
-
-        }
-        else {
-            liste.add(verifLangue);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
         }
         return ServerResponse.ok().contentType(MediaType.APPLICATION_JSON).body(BodyInserters.fromValue(liste));
     }
 
+    public Mono<ServerResponse> anagrammes(ServerRequest request) {
+        String langue = request.pathVariable("langue");
+        String mot = request.pathVariable("mot");
+
+        ArrayList<String> liste = new ArrayList<>();
+        String verifLangue = Utils.verifierDossiers(langue);
+
+        try {
+            Dico dico = Utils.getDico(langue, verifLangue);
+            if (dico != null) {
+                Utils utils = new Utils(dico);
+                HashSet<String> set = utils.getAllAnagrams(mot);
+                if (!set.isEmpty()) liste.addAll(set);
+                else liste.add("Ce mot n'existe pas");
+            } else {
+                liste.add(verifLangue);
+            }
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+        return ServerResponse.ok().contentType(MediaType.APPLICATION_JSON).body(BodyInserters.fromValue(liste));
+    }
+
+    public Mono<ServerResponse> anagrammesJoker(ServerRequest request) {
+        String langue = request.pathVariable("langue");
+        String mot = request.pathVariable("mot");
+        int i = Integer.parseInt(request.pathVariable("i"));
+
+        HashSet<String> liste = new HashSet<>();
+        String verifLangue = Utils.verifierDossiers(langue);
+        try {
+            Dico dico = Utils.getDico(langue, verifLangue);
+            if (dico != null) {
+                Utils utils = new Utils(dico);
+                for (char c1 = 'a'; c1 <= 'z'; c1++) {
+                    if (i == 1) {
+                        String newMot = mot + c1;
+                        liste.addAll(utils.getAllAnagrams(newMot));
+                    } else {
+                        for (char c2 = 'a'; c2 <= 'z'; c2++) {
+                            String newMot = mot + c1 + c2;
+                            liste.addAll(utils.getAllAnagrams(newMot));
+                        }
+                    }
+                }
+            } else {
+                liste.add(verifLangue);
+            }
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+        return ServerResponse.ok().contentType(MediaType.APPLICATION_JSON).body(BodyInserters.fromValue(liste));
+    }
+
+    public Mono<ServerResponse> unMot(ServerRequest request) {
+        String langue = request.pathVariable("langue");
+
+        String verifLangue = Utils.verifierDossiers(langue);
+        String resultat;
+        try {
+            Dico dico = Utils.getDico(langue, verifLangue);
+            if (dico != null) {
+                Set<String> keys = dico.getDictionnary().keySet();
+                String[] keyArray = keys.toArray(new String[0]);
+                resultat = Utils.getRandomWord(keyArray, RANDOM, dico);
+            } else resultat = verifLangue;
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+
+        MediaType mediaType = new MediaType(MediaType.TEXT_PLAIN, StandardCharsets.UTF_8);
+        return ServerResponse.ok().contentType(mediaType).body(BodyInserters.fromValue(resultat));
+    }
+
+    public Mono<ServerResponse> unMotLongueurCustom(ServerRequest request) {
+        String langue = request.pathVariable("langue");
+        int i = Integer.parseInt(request.pathVariable("i"));
+
+        String verifLangue = Utils.verifierDossiers(langue);
+        String resultat;
+        try {
+            Dico dico = Utils.getDico(langue, verifLangue);
+            if (dico != null) {
+                Set<String> keys = dico.getDictionnary().keySet();
+                keys.removeIf(key -> key.length() != i);
+                if (!keys.isEmpty()) {
+                    String[] keyArray = keys.toArray(new String[0]);
+                    resultat = Utils.getRandomWord(keyArray, RANDOM, dico);
+                } else resultat = "Aucun mot de cette taille";
+            } else resultat = verifLangue;
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+
+        MediaType mediaType = new MediaType(MediaType.TEXT_PLAIN, StandardCharsets.UTF_8);
+        return ServerResponse.ok().contentType(mediaType).body(BodyInserters.fromValue(resultat));
+    }
 }

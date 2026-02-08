@@ -16,6 +16,11 @@ public class Tp2Router {
                 .GET("/rh/langues", handler::langues)
                 .POST("rh/ajouterLangue", handler::ajouterLangue)
                 .GET("rh/{langue}/anagrammesStrict/{mot}", handler::anagrammesStrict)
+                .GET("rh/{langue}/anagrammes/{mot}", handler::anagrammes)
+                .GET("rh/{langue}/anagrammes/{mot}/joker/{i:[1-2]}", handler::anagrammesJoker)
+                .GET("rh/{langue}/unmot", handler::unMot)
+                .GET("rh/{langue}/unmot/longueur/{i}", handler::unMotLongueurCustom)
                 .build();
     }
+
 }

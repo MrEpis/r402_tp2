@@ -10,10 +10,13 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.SequenceInputStream;
-import java.util.ArrayList;
+import java.security.SecureRandom;
+import java.util.*;
 
 @RestController
 public class Tp2RestController {
+
+    private static final SecureRandom RANDOM = new SecureRandom();
 
     @GetMapping("/ping")
     public String ping() {
@@ -68,26 +71,112 @@ public class Tp2RestController {
     }
 
     @GetMapping("{langue}/anagrammesStrict/{mot}")
-    public ArrayList<String> anagrammesStric(@PathVariable String langue, @PathVariable String mot) {
+    public ArrayList<String> anagrammesStrict(@PathVariable String langue, @PathVariable String mot) {
         ArrayList<String> liste = new ArrayList<>();
         String verifLangue = Utils.verifierDossiers(langue);
-        if (verifLangue.isEmpty()) {
-            File anagrammes = new File("langues/" + langue + "/anagrammes.json");
-
-            ObjectMapper mapper = new ObjectMapper();
-            try {
-                Dico dico = mapper.readValue(anagrammes, Dico.class);
+        try {
+            Dico dico = Utils.getDico(langue, verifLangue);
+            if (dico != null) {
                 String normMot = dico.normalize(mot);
                 String cle = dico.anagram(normMot);
 
                 if (dico.getDictionnary().get(cle) != null) liste.addAll(dico.getDictionnary().get(cle));
                 else liste.add("Ce mot n'existe pas");
-            } catch (IOException e) {
-                throw new RuntimeException(e);
+            } else {
+                liste.add(verifLangue);
             }
-        } else {
-            liste.add(verifLangue);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
         }
         return liste;
     }
+
+    @GetMapping("{langue}/anagrammes/{mot}")
+    public ArrayList<String> anagrammes(@PathVariable String langue, @PathVariable String mot) {
+        ArrayList<String> liste = new ArrayList<>();
+        String verifLangue = Utils.verifierDossiers(langue);
+        try {
+            Dico dico = Utils.getDico(langue, verifLangue);
+            if (dico != null) {
+                Utils utils = new Utils(dico);
+                HashSet<String> set = utils.getAllAnagrams(mot);
+                if (!set.isEmpty()) liste.addAll(set);
+                else liste.add("Ce mot n'existe pas");
+            } else {
+                liste.add(verifLangue);
+            }
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+        return liste;
+    }
+
+
+    @GetMapping("{langue}/anagrammes/{mot}/joker/{i:[1-2]}")
+    public HashSet<String> anagrammesJoker(@PathVariable String langue, @PathVariable String mot, @PathVariable int i) {
+        HashSet<String> liste = new HashSet<>();
+        String verifLangue = Utils.verifierDossiers(langue);
+        try {
+            Dico dico = Utils.getDico(langue, verifLangue);
+            if (dico != null) {
+                Utils utils = new Utils(dico);
+                for (char c1 = 'a'; c1 <= 'z'; c1++) {
+                    if (i == 1) {
+                        String newMot = mot + c1;
+                        liste.addAll(utils.getAllAnagrams(newMot));
+                    } else {
+                        for (char c2 = 'a'; c2 <= 'z'; c2++) {
+                            String newMot = mot + c1 + c2;
+                            liste.addAll(utils.getAllAnagrams(newMot));
+                        }
+                    }
+                }
+            } else {
+                liste.add(verifLangue);
+            }
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+        return liste;
+    }
+
+
+    @GetMapping("{langue}/unmot")
+    public String unMot(@PathVariable String langue) {
+        String verifLangue = Utils.verifierDossiers(langue);
+        String resultat;
+        try {
+            Dico dico = Utils.getDico(langue, verifLangue);
+            if (dico != null) {
+                Set<String> keys = dico.getDictionnary().keySet();
+                String[] keyArray = keys.toArray(new String[0]);
+                resultat = Utils.getRandomWord(keyArray, RANDOM, dico);
+            } else resultat = verifLangue;
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+        return resultat;
+    }
+
+    @GetMapping("{langue}/unmot/longueur/{i}")
+    public String unMotLongueurCustom(@PathVariable String langue, @PathVariable int i) {
+        String verifLangue = Utils.verifierDossiers(langue);
+        String resultat;
+        try {
+            Dico dico = Utils.getDico(langue, verifLangue);
+            if (dico != null) {
+                Set<String> keys = dico.getDictionnary().keySet();
+                keys.removeIf(key -> key.length() != i);
+                if (!keys.isEmpty()) {
+                    String[] keyArray = keys.toArray(new String[0]);
+                    resultat = Utils.getRandomWord(keyArray, RANDOM, dico);
+                } else resultat = "Aucun mot de cette taille";
+            } else resultat = verifLangue;
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+        return resultat;
+    }
+
+
 }
